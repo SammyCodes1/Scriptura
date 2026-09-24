@@ -8,6 +8,9 @@ import {
   ConfessionItem,
   calculateConfessionStreak,
 } from '../config/confessionDecks';
+import starterChaptersData from '../data/starterChapters.json';
+
+const starterChapters: Record<string, BibleVerse[]> = starterChaptersData as any;
 
 export interface CachedChapterRow {
   translation: string;
@@ -265,6 +268,52 @@ export async function getLocalVersesFromSqlite(
   bookCode: string,
   chapter: number
 ): Promise<BibleVerse[]> {
+  const trUpper = translation.toUpperCase();
+  const bkUpper = bookCode.toUpperCase();
+
+  if (Platform.OS === 'web') {
+    const key = `${trUpper}_${bkUpper}_${chapter}`;
+
+    // 1. Check pre-bundled starter chapters (instant 0ms response)
+    if (starterChapters[key]) {
+      return starterChapters[key];
+    }
+
+    // 2. Check in-memory/localStorage cache
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(`@scriptura_verses_${key}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+
+    // 3. Fetch from /api/chapter serverless endpoint
+    try {
+      const url = `/api/chapter?translation=${encodeURIComponent(trUpper)}&book=${encodeURIComponent(bkUpper)}&chapter=${chapter}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.verses) && data.verses.length > 0) {
+          if (typeof localStorage !== 'undefined') {
+            try {
+              localStorage.setItem(`@scriptura_verses_${key}`, JSON.stringify(data.verses));
+            } catch {}
+          }
+          return data.verses;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch chapter from web API:', e);
+    }
+
+    return [];
+  }
+
   const db = await getDatabase();
   if (!db) {
     return [];
@@ -274,7 +323,7 @@ export async function getLocalVersesFromSqlite(
     `SELECT verse, text FROM verses 
      WHERE translation = ? AND (book_code = ? OR book = ?) AND chapter = ? 
      ORDER BY verse ASC`,
-    [translation.toUpperCase(), bookCode.toUpperCase(), bookCode, chapter]
+    [trUpper, bkUpper, bkUpper, chapter]
   );
 
   return rows.map(r => ({ verse: r.verse, text: r.text }));
@@ -288,10 +337,27 @@ export async function searchLocalVersesInSqlite(
   query: string,
   limit = 150
 ): Promise<Array<{ translation: string; book: string; book_code: string; chapter: number; verse: number; text: string }>> {
+  const trUpper = translation.toUpperCase();
+
+  if (Platform.OS === 'web') {
+    try {
+      const url = `/api/search?translation=${encodeURIComponent(trUpper)}&query=${encodeURIComponent(query)}&limit=${limit}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.results)) {
+          return data.results;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to search verses from web API:', e);
+    }
+    return [];
+  }
+
   const db = await getDatabase();
   if (!db) return [];
 
-  const trUpper = translation.toUpperCase();
   let sql = '';
   let params: any[] = [];
 
