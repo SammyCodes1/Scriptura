@@ -39,7 +39,7 @@ module.exports = async function handler(req, res) {
     const database = getDatabase();
     const stmt = database.prepare(
       `SELECT verse, text FROM verses 
-       WHERE translation = ? AND (book_code = ? OR book = ?) AND chapter = ? 
+       WHERE translation = ? AND (book_code = ? OR book = ? COLLATE NOCASE) AND chapter = ? 
        ORDER BY verse ASC`
     );
     const rows = stmt.all(trUpper, bkUpper, bkUpper, chNum);

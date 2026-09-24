@@ -31,9 +31,9 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { translation = 'KJV', query = '', limit = '50' } = req.query || {};
+    const { translation = 'KJV', query = '', q = '', limit = '50' } = req.query || {};
     const trUpper = String(translation).toUpperCase();
-    const queryStr = String(query).trim();
+    const queryStr = String(query || q || '').trim();
     const limitNum = Math.min(parseInt(String(limit), 10) || 50, 150);
 
     if (!queryStr || queryStr.length < 2) {
