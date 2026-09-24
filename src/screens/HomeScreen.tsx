@@ -330,7 +330,7 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       marginVertical: spacing.md,
     },
     votdRef: { color: colors.borderLight, fontSize: fontSizes.md, fontWeight: fontWeights.bold, marginBottom: spacing.md },
-    votdActions: { flexDirection: 'row', gap: spacing.sm },
+    votdActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
     votdActionBtn: {
       backgroundColor: colors.surface,
       minHeight: 44,
@@ -504,6 +504,19 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             accessibilityLabel={`Read ${verseOfDay.reference} in context`}
           >
             <Text style={styles.votdActionText}>Read in Context</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.votdShareBtn}
+            onPress={async () => {
+              await syncVerseOfTheDayToWidgetStorage();
+              navigation.navigate('VerseWidget');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Preview and sync Verse of the Day widget"
+          >
+            <Text style={styles.votdShareText}>Widget</Text>
+            <Ionicons name="phone-portrait-outline" size={14} color={colors.surface} />
           </TouchableOpacity>
 
           <TouchableOpacity

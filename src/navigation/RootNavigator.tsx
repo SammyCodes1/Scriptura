@@ -18,6 +18,7 @@ import { ConfessionsScreen } from '../screens/ConfessionsScreen';
 import { DownloadsScreen } from '../screens/DownloadsScreen';
 import { BibleMapScreen } from '../screens/BibleMapScreen';
 import { PrivacyPolicyScreen } from '../screens/PrivacyPolicyScreen';
+import { VerseWidgetScreen } from '../screens/VerseWidgetScreen';
 
 // ─── Stack Navigators ─────────────────────────────────────────
 // Home tab hosts Community, Confessions & BibleMap as sub-screens.
@@ -37,6 +38,7 @@ const HomeStackScreen: React.FC = () => {
       <HomeStack.Screen name="BibleMap" component={BibleMapScreen} options={{ title: 'Biblical Places Map' }} />
       <HomeStack.Screen name="Community" component={CommunityScreen} options={{ title: 'Community & Prayer' }} />
       <HomeStack.Screen name="Confessions" component={ConfessionsScreen} options={{ title: 'Daily Confessions' }} />
+      <HomeStack.Screen name="VerseWidget" component={VerseWidgetScreen} options={{ title: 'Verse Widget' }} />
     </HomeStack.Navigator>
   );
 };
