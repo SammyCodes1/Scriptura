@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { Platform, Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   THEMES,
@@ -23,6 +24,8 @@ import {
 const STORAGE_KEY_THEME = '@scriptura_theme';
 const STORAGE_KEY_FONT_SIZE = '@scriptura_font_size';
 const STORAGE_KEY_FONT_STYLE = '@scriptura_font_style';
+// Flag: has the user ever explicitly chosen a theme?
+const STORAGE_KEY_THEME_CHOSEN = '@scriptura_theme_chosen';
 
 interface ThemeContextType {
   // Theme
@@ -56,8 +59,45 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType>({} as ThemeContextType);
 
+/** Inject CSS custom properties onto <html data-theme="…"> for web. No-op on native. */
+function applyWebTheme(name: ThemeName) {
+  if (Platform.OS !== 'web') return;
+  if (typeof document === 'undefined') return;
+  const tokens = THEMES[name]?.cssTokens;
+  if (!tokens) return;
+
+  document.documentElement.setAttribute('data-theme', name);
+  const root = document.documentElement.style;
+  root.setProperty('--bg', tokens.bg);
+  root.setProperty('--surface', tokens.surface);
+  root.setProperty('--text-primary', tokens.textPrimary);
+  root.setProperty('--text-secondary', tokens.textSecondary);
+  root.setProperty('--accent', tokens.accent);
+  root.setProperty('--border', tokens.border);
+  // Also set body background immediately so there is no white flash between
+  // the inline <style> fallback and React rendering.
+  document.body.style.backgroundColor = tokens.bg;
+}
+
+/** Determine first-visit default: Midnight if prefers dark, else Parchment. */
+function getSystemDefault(): ThemeName {
+  try {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'midnight'
+        : 'parchment';
+    }
+    // Native
+    return Appearance.getColorScheme() === 'dark' ? 'midnight' : 'parchment';
+  } catch {
+    return 'parchment';
+  }
+}
+
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [themeName, setThemeNameState] = useState<ThemeName>('light');
+  // Start with parchment synchronously; async load will correct it before first paint if
+  // we already have a stored choice (the web inline script handles the flash prevention).
+  const [themeName, setThemeNameState] = useState<ThemeName>('parchment');
   const [scriptureFontSize, setScriptureFontSizeState] = useState<number>(FONT_SIZE_DEFAULT);
   const [scriptureFontStyle, setScriptureFontStyleState] = useState<FontStyleId>(DEFAULT_FONT_STYLE);
 
@@ -65,14 +105,25 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     (async () => {
       try {
-        const [savedTheme, savedSize, savedStyle] = await Promise.all([
+        const [savedTheme, savedChosen, savedSize, savedStyle] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEY_THEME),
+          AsyncStorage.getItem(STORAGE_KEY_THEME_CHOSEN),
           AsyncStorage.getItem(STORAGE_KEY_FONT_SIZE),
           AsyncStorage.getItem(STORAGE_KEY_FONT_STYLE),
         ]);
-        if (savedTheme && savedTheme in THEMES) {
-          setThemeNameState(savedTheme as ThemeName);
+
+        let resolvedTheme: ThemeName;
+        if (savedTheme && savedTheme in THEMES && savedChosen === 'true') {
+          // User previously made an explicit choice — always honour it.
+          resolvedTheme = savedTheme as ThemeName;
+        } else {
+          // First visit: use system preference.
+          resolvedTheme = getSystemDefault();
         }
+
+        setThemeNameState(resolvedTheme);
+        applyWebTheme(resolvedTheme);
+
         if (savedSize) {
           const parsed = parseInt(savedSize, 10);
           if (parsed >= FONT_SIZE_MIN && parsed <= FONT_SIZE_MAX) {
@@ -84,13 +135,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       } catch {
         // Silently use defaults
+        applyWebTheme('parchment');
       }
     })();
   }, []);
 
   const setThemeName = (name: ThemeName) => {
     setThemeNameState(name);
+    applyWebTheme(name);
+    // Persist both the choice and the "explicitly chosen" flag.
     AsyncStorage.setItem(STORAGE_KEY_THEME, name).catch(() => {});
+    AsyncStorage.setItem(STORAGE_KEY_THEME_CHOSEN, 'true').catch(() => {});
   };
 
   const setScriptureFontSize = (size: number) => {
