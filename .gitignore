@@ -46,3 +46,6 @@ scripts/.openbible_cache/
 # generated native folders
 /ios
 /android
+
+.vercel
+.env*
